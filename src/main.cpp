@@ -6,6 +6,12 @@
 
 Adafruit_MPU6050 mpu;
 
+//Utiliser le PID de Z lorsque l'on voudra avancer
+// Position stable : X = ? Y = 10 Z = 0
+// Inclinaison en avant : X = ? Y = 0 Z = -10
+// Inclinaison en arrière : X = ? Y = 0 Z = 10
+//Position renversée : X = ? Y = -10 Z = 0
+
 const int numSamples = 200; // Number of accelerometer readings to print
 const int servoPinLeft = 10; // Servo pin for left wheel
 const int servoPinRight = 11; // Servo pin for right wheel
@@ -13,48 +19,25 @@ const int servoPinRight = 11; // Servo pin for right wheel
 Servo servoLeft;
 Servo servoRight;
 
-double Setpoint, Input, Output;
-PID myPID(&Input, &Output, &Setpoint,1,1,1, DIRECT);
+double Y_Setpoint = 10, Z_Setpoint = 0.0; // Valeurs cibles
+double Y_Input, Z_Input; // Valeurs actuelles
+double Y_Output, Z_Output; // Commandes de sortie
 
-// Function to map Z-axis values to angles
-float mapToAngle(float zValue) {
-  // Assuming the sensor is perfectly vertical when zValue is 9.81 (gravity)
-  // The angle is then the arcsin of the zValue divided by gravity
-  float angle = asin(zValue / 9.81) * (180.0 / PI); // Convert to degrees
-  return angle;
-}
+//pmax = 20
+//p = 12
+//imax = 7
 
-// Function to measure position Y and return deltaY
-float measurePositionY() {
-  // Assuming the sensor is stationary at the start
-  // The change in Y position (deltaY) is then the integral of the Y acceleration over time
-  // For simplicity, we can just return the Y acceleration as a proxy for deltaY
-  sensors_event_t a, g, temp;
-  mpu.getEvent(&a, &g, &temp);
-  return a.acceleration.y;
-}
 
-// Function to control the servos based on stabilization algorithm
-void controlServos(float angle) {
-  // Assuming the servos are centered at 90 degrees
-  // If the angle is positive, the robot is tilting backwards
-  // If the angle is negative, the robot is tilting forwards
-  // We can then adjust the servos to counteract the tilt
-  if (angle > 0) {
-    servoLeft.write(90 + angle);
-    servoRight.write(90 - angle);
-  } else {
-    servoLeft.write(90 - angle);
-    servoRight.write(90 + angle);
-  }
-}
+double Y_Kp = 12, Y_Ki = 7, Y_Kd = 0; // Coefficients PID
+double Z_Kp = 12, Z_Ki = 7, Z_Kd = 0; // Coefficients PID
+
+
+PID Y_PID(&Y_Input, &Y_Output, &Y_Setpoint, Y_Kp, Y_Ki, Y_Kd, DIRECT);
+PID Z_PID(&Z_Input, &Z_Output, &Z_Setpoint, Z_Kp, Z_Ki, Z_Kd, DIRECT);
 
 void setup() {
   Serial.begin(9600);
   while (!Serial) delay(10); // Wait for serial connection
-
-  Serial.println("Collecting accelerometer data...");
-  delay(100);
 
   // Initialize MPU6050
   if (!mpu.begin()) {
@@ -63,8 +46,6 @@ void setup() {
       delay(10);
     }
   }
-  Serial.println("MPU6050 Found!");
-
   mpu.setAccelerometerRange(MPU6050_RANGE_2_G);
   mpu.setGyroRange(MPU6050_RANGE_500_DEG);
   mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
@@ -74,33 +55,50 @@ void setup() {
   servoRight.attach(servoPinRight);
 
   // Initialize PID
-  Setpoint = 0;
-  myPID.SetMode(AUTOMATIC);
-  myPID.SetOutputLimits(-255, 255);
+  Y_PID.SetMode(AUTOMATIC);
+  Z_PID.SetMode(AUTOMATIC);
 }
 
 void loop() {
-  sensors_event_t a, g, temp;
-  mpu.getEvent(&a, &g, &temp);
+  // Read accelerometer data
+  sensors_event_t accel, gyro, temp;
   
-  // Use complementary filter to get angle
-  float accelAngle = mapToAngle(a.acceleration.z);
-  float gyroRate = g.gyro.z;
-  float dt = 0.01; // Time elapsed since last measurement, in seconds
-  float angle = 0.98 * (angle + gyroRate * dt) + 0.02 * accelAngle;
+  mpu.getEvent(&accel, &gyro, &temp);
+  Y_Input = accel.acceleration.y;
+  Z_Input = accel.acceleration.z;
+  
+  if (Y_Input < 0){
+    //La position d'équilibre n'est plus du tout maintenue
+    //On arrête le robot
+    servoLeft.write(90);
+    servoRight.write(90);
+    delay(10);
+    Serial.println("Le robot est renversé, arrêt du programme");
+    while(Y_Input < 0){
+      mpu.getEvent(&accel, &gyro, &temp);
+      Y_Input = accel.acceleration.y;
+      Z_Input = accel.acceleration.z;
+    }
+  }
 
-  // Use PID controller to get output
-  Input = angle;
-  myPID.Compute();
+  // Compute PID output
+  Y_PID.Compute();
+  Z_PID.Compute();
 
-  // Control servos based on PID output
-  controlServos(Output);
+  // Set servo positions based on PID output
+  int correction = Y_Output - Z_Output;
+  int servoLeftPos = 90 + correction;
+  int servoRightPos = 90 - correction;
+  servoLeft.write(servoLeftPos);
+  servoRight.write(servoRightPos);
 
-  // Print accelerometer data with mapped angles
-  Serial.print("Acceleration (m/s^2): ");
-  Serial.print("Z: "); Serial.print(a.acceleration.z);
-  Serial.print(", Angle: "); Serial.println(angle);
+  // Print PID output for debugging
+  Serial.print("Y_Output: ");
+  Serial.print(Y_Output);
+  Serial.print(", Z_Output: ");
+  Serial.println(Z_Output);
 
-  // Wait between each measurement
-  delay(100);
+  delay(10);
+  
+  
 }
