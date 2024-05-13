@@ -1,9 +1,10 @@
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 #include <Wire.h>
+#include <Servo.h>
 
 Adafruit_MPU6050 mpu;
-
+Servo servoRight, servoLeft;
 
 //Capter l'angle de tangeage à partir de l'accéléromètre en Y et Z
 float AccelerometerData() {
@@ -26,6 +27,9 @@ void setup() {
   mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
   mpu.setGyroRange(MPU6050_RANGE_500_DEG);
   mpu.setFilterBandwidth(MPU6050_BAND_5_HZ);
+  
+  servoRight.attach(10);
+  servoLeft.attach(11);
 }
 
 // Fonction loop
