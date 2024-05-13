@@ -28,8 +28,8 @@ double Y_Output, Z_Output; // Commandes de sortie
 //imax = 7
 
 
-double Y_Kp = 12, Y_Ki = 7, Y_Kd = 0; // Coefficients PID
-double Z_Kp = 12, Z_Ki = 7, Z_Kd = 0; // Coefficients PID
+double Y_Kp = 20, Y_Ki = 12, Y_Kd = 0; // Coefficients PID
+double Z_Kp = 20, Z_Ki = 12, Z_Kd = 0; // Coefficients PID
 
 
 PID Y_PID(&Y_Input, &Y_Output, &Y_Setpoint, Y_Kp, Y_Ki, Y_Kd, DIRECT);
@@ -97,8 +97,5 @@ void loop() {
   Serial.print(Y_Output);
   Serial.print(", Z_Output: ");
   Serial.println(Z_Output);
-
-  delay(10);
-  
   
 }
