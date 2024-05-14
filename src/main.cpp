@@ -5,10 +5,15 @@
 
 Adafruit_MPU6050 mpu;
 Servo servoRight, servoLeft;
-
-float Kp = 45, Ki = 15, Kd = 20;
+//45 15 20 
+// 15 35 25
+// 100 30 10
+float Kp = 15, Ki = 35, Kd = 25;
 float integral = 0, previousError = 0;
 unsigned long previousTime = 0;
+
+double minCorrection = -90;
+double maxCorrection = 90;
 
 //Capter l'angle de tangeage à partir de l'accéléromètre en Y et Z
 float AccelerometerData() {
@@ -45,7 +50,7 @@ void setup() {
   mpu.setGyroRange(MPU6050_RANGE_500_DEG);
   mpu.setFilterBandwidth(MPU6050_BAND_5_HZ);
   
-  servoRight.attach(10); // Connect the right servo to pin 9
+  servoRight.attach(10); // Connect the rikght servo to pin 9
   servoLeft.attach(11); // Connect the left servo to pin 10
 }
 
@@ -61,8 +66,17 @@ void loop() {
   }
   float correction = update(0, angle); // Assume we want to maintain 0 degree
   
+  if (correction > maxCorrection) {
+    maxCorrection = correction;
+  } else if (correction < minCorrection) {
+    minCorrection = correction;
+  }
+  
+  correction = map(correction, minCorrection, maxCorrection, -90, 90); // Map the correction to the servo range (-90 to 90
+  
+  
   Serial.println("\nAngle: " + String(angle) + " Correction: " + String(correction));
   servoRight.write(90 + correction);
   servoLeft.write(90 - correction);
-  delay(200);
+  delay(100);
 }
