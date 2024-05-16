@@ -22,7 +22,7 @@ unsigned long lastTime;
 // Variables pour le filtre de Kalman
 float Q_angle = 0.01; // Process noise variance for the accelerometer
 float Q_gyro = 0.01; // Process noise variance for the gyroscope
-float R_angle = 0.35; // Measurement noise variance
+float R_angle = 0.45; // Measurement noise variance
 float angle = 0; // The angle calculated by the Kalman filter
 float bias = 0; // The gyro bias calculated by the Kalman filter
 float P[2][2] = {{0, 0}, {0, 0}}; // Error covariance matrix
@@ -85,7 +85,7 @@ void loop() {
     P[1][0] -= K[1] * P00_temp;
     P[1][1] -= K[1] * P01_temp;
 
-    float desiredAngle = 95; // Angle vertical, 95 stabilité sur notre robot
+    float desiredAngle = 94.5; // Angle vertical, 95 stabilité sur notre robot
     float error = desiredAngle - angle;
 
     // Calcul du PID
@@ -94,7 +94,7 @@ void loop() {
     float output = Kp * error + Ki * integral + Kd * derivative;
 
 	//88.5
-    servoDroit.write(88.25 + output);
+    servoDroit.write(89 + output);
     servoGauche.write(90 - output);
     Serial.print("Angle Y actuel: ");
     Serial.println(angle);
