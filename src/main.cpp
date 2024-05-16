@@ -4,79 +4,102 @@
 #include <Servo.h>
 
 Adafruit_MPU6050 mpu;
-Servo servoRight, servoLeft;
-//45 15 20 
-// 15 35 25
-// 100 30 10
-float Kp = 15, Ki = 35, Kd = 25;
-float integral = 0, previousError = 0;
-unsigned long previousTime = 0;
+sensors_event_t a, g, temp;
 
-double minCorrection = -90;
-double maxCorrection = 90;
+Servo servoDroit;
+Servo servoGauche;
 
-//Capter l'angle de tangeage à partir de l'accéléromètre en Y et Z
-float AccelerometerData() {
-  sensors_event_t a, g, temp;
-  mpu.getEvent(&a, &g, &temp);
-  float angle = (atan2(a.acceleration.y, a.acceleration.z) * 180 / PI) - 90; // l'angle varie de -90 à 90 degrés, 0 étant la position stable
-  return angle;
-}
+// Paramètres PID
+float Kp = 3;  // Coefficient proportionnel
+float Ki = 0;  // Coefficient intégral
+float Kd = 0.1;  // Coefficient dérivatif
 
-float update(float setpoint, float actualValue) {
-    unsigned long currentTime = millis();
-    float deltaTime = (currentTime - previousTime) / 1000.0; // Convert to seconds
+// Variables pour le PID
+float previous_error = 0;
+float integral = 0;
+unsigned long lastTime;
 
-    float error = setpoint - actualValue;
-    integral += error * deltaTime;
-    float derivative = (error - previousError) / deltaTime;
+// Variables pour le filtre de Kalman
+float Q_angle = 0.01; // Process noise variance for the accelerometer
+float Q_gyro = 0.01; // Process noise variance for the gyroscope
+float R_angle = 0.35; // Measurement noise variance
+float angle = 0; // The angle calculated by the Kalman filter
+float bias = 0; // The gyro bias calculated by the Kalman filter
+float P[2][2] = {{0, 0}, {0, 0}}; // Error covariance matrix
 
-    previousError = error;
-    previousTime = currentTime;
-
-    return Kp * error + Ki * integral + Kd * derivative;
-}
-
-// Fonction setup
 void setup() {
-  Serial.begin(9600);
-  if (!mpu.begin()) {
-    Serial.println("Failed to find MPU6050 chip");
-    while (1) {
-      delay(10);
+    Serial.begin(115200);
+    while (!Serial) delay(10);
+
+    if (!mpu.begin()) {
+        Serial.println("Erreur du capteur MPU6050!");
+        while (1) yield();
     }
-  }
-  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
-  mpu.setGyroRange(MPU6050_RANGE_500_DEG);
-  mpu.setFilterBandwidth(MPU6050_BAND_5_HZ);
-  
-  servoRight.attach(10); // Connect the rikght servo to pin 9
-  servoLeft.attach(11); // Connect the left servo to pin 10
+
+    servoDroit.attach(10); // Connecter le premier servo à la broche D10
+    servoGauche.attach(11); // Connecter le second servo à la broche D11
+
+    // Configuration de MPU6050
+    mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+    mpu.setGyroRange(MPU6050_RANGE_500_DEG);
+    mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+
+    lastTime = millis();
 }
 
 void loop() {
-  float angle = AccelerometerData();
-  if (angle < -90 || angle > 90) {
-    Serial.println("Angle out of range");
-    servoRight.write(90);
-    servoLeft.write(90);
-    while (angle <  -90 || angle > 90) {
-      angle = AccelerometerData();
-    }
-  }
-  float correction = update(0, angle); // Assume we want to maintain 0 degree
-  
-  if (correction > maxCorrection) {
-    maxCorrection = correction;
-  } else if (correction < minCorrection) {
-    minCorrection = correction;
-  }
-  
-  correction = map(correction, minCorrection, maxCorrection, -90, 90); // Map the correction to the servo range (-90 to 90
-  
-  
-  Serial.println("\nAngle: " + String(angle) + " Correction: " + String(correction));
-  servoRight.write(90 + correction);
-  servoLeft.write(90 - correction);
-  delay(100);
+    
+    mpu.getEvent(&a, &g, &temp);
+
+    unsigned long now = millis();
+    float dt = (now - lastTime) / 1000.0;
+    lastTime = now;
+
+    // Lecture des données du capteur
+    float accel_angle = atan2(a.acceleration.y, a.acceleration.z) * 180 / PI;
+    float gyro_rate = g.gyro.x * 180 / PI;
+
+    // Application du filtre de Kalman
+    float rate = gyro_rate  - bias;
+    angle += dt * rate;
+
+    P[0][0] += dt * (dt * P[1][1] - P[0][1] - P[1][0] + Q_angle);
+    P[0][1] -= dt * P[1][1];
+    P[1][0] -= dt * P[1][1];
+    P[1][1] += Q_gyro * dt;
+
+    float S = P[0][0] + R_angle;
+    float K[2];
+    K[0] = P[0][0] / S;
+    K[1] = P[1][0] / S;
+
+    float y = accel_angle - angle;
+    angle += K[0] * y;
+    bias += K[1] * y;
+
+    float P00_temp = P[0][0];
+    float P01_temp = P[0][1];
+
+    P[0][0] -= K[0] * P00_temp;
+    P[0][1] -= K[0] * P01_temp;
+    P[1][0] -= K[1] * P00_temp;
+    P[1][1] -= K[1] * P01_temp;
+
+    float desiredAngle = 95; // Angle vertical, 95 stabilité sur notre robot
+    float error = desiredAngle - angle;
+
+    // Calcul du PID
+    integral += error * dt;
+    float derivative = (error - previous_error) / dt;
+    float output = Kp * error + Ki * integral + Kd * derivative;
+
+	//88.5
+    servoDroit.write(88.25 + output);
+    servoGauche.write(90 - output);
+    Serial.print("Angle Y actuel: ");
+    Serial.println(angle);
+    Serial.print("PID Output: ");
+    Serial.println(output);
+
+    previous_error = error;
 }
