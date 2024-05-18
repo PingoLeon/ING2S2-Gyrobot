@@ -12,7 +12,7 @@ Servo servoGauche;
 // Paramètres PID
 float Kp = 3;  // Coefficient proportionnel
 float Ki = 0;  // Coefficient intégral
-float Kd = 2;  // Coefficient dérivatif
+float Kd = 4;  // Coefficient dérivatif
 
 // Variables pour le PID
 float previous_error = 0;
@@ -22,7 +22,7 @@ unsigned long lastTime;
 // Variables pour le filtre de Kalman
 float Q_angle = 0.01; // Process noise variance for the accelerometer
 float Q_gyro = 0.01; // Process noise variance for the gyroscope
-float R_angle = 1.2; // Measurement noise variance
+float R_angle = 4; // Measurement noise variance
 float angle = 0; // The angle calculated by the Kalman filter
 float bias = 0; // The gyro bias calculated by the Kalman filter
 float P[2][2] = {{0, 0}, {0, 0}}; // Error covariance matrix
@@ -85,7 +85,7 @@ void loop() {
     P[1][0] -= K[1] * P00_temp;
     P[1][1] -= K[1] * P01_temp;
 
-    float desiredAngle = 94.7; // Angle vertical, 95 stabilité sur notre robot
+    float desiredAngle = 98; // Angle vertical, 95 stabilité sur notre robot
     float error = desiredAngle - angle;
 
     // Calcul du PID
