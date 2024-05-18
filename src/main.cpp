@@ -85,7 +85,7 @@ void loop() {
     P[1][0] -= K[1] * P00_temp;
     P[1][1] -= K[1] * P01_temp;
 
-    float desiredAngle = 95; // Angle vertical, 95 stabilité sur notre robot
+    float desiredAngle = 94.4; // Angle vertical, 95 stabilité sur notre robot
     float error = desiredAngle - angle;
 
     // Calcul du PID
