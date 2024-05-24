@@ -2,7 +2,6 @@
 #include <Adafruit_Sensor.h>
 #include <Wire.h>
 #include <Servo.h>
-#include <Arduino.h>
 
 Adafruit_MPU6050 mpu;
 sensors_event_t a, g, temp;
@@ -20,9 +19,6 @@ float previous_error = 0;
 float integral = 0;
 unsigned long lastTime;
 
-float desiredAngle = 0;
-unsigned long timemeasure = millis();
-
 // Variables pour le filtre de Kalman
 float Q_angle = 0.01; // Process noise variance for the accelerometer
 float Q_gyro = 0.01; // Process noise variance for the gyroscope
@@ -32,7 +28,7 @@ float bias = 0; // The gyro bias calculated by the Kalman filter
 float P[2][2] = {{0, 0}, {0, 0}}; // Error covariance matrix
 
 void setup() {
-    Serial.begin(9600);
+    Serial.begin(115200);
     while (!Serial) delay(10);
 
     if (!mpu.begin()) {
@@ -88,22 +84,8 @@ void loop() {
     P[0][1] -= K[0] * P01_temp;
     P[1][0] -= K[1] * P00_temp;
     P[1][1] -= K[1] * P01_temp;
-    
-    
-    
-    
 
-    desiredAngle = 94.4; // Angle vertical, 95 stabilité sur notre robot
-    float compensationAnglesothatitdoesnotturnagainstthecableattachedtoit = 0;
-    //Mesurer 10 secondes : 
-    if (millis() - timemeasure > 10000) {
-        desiredAngle = 98; //On avance
-        compensationAnglesothatitdoesnotturnagainstthecableattachedtoit = 1;
-    }
-    if(millis() - timemeasure > 20000){
-        desiredAngle = 94.4; //On s'arrête
-        compensationAnglesothatitdoesnotturnagainstthecableattachedtoit = 0;
-    }
+    float desiredAngle = 94.4; // Angle vertical, 95 stabilité sur notre robot
     float error = desiredAngle - angle;
 
     // Calcul du PID
@@ -112,11 +94,12 @@ void loop() {
     float output = Kp * error + Ki * integral + Kd * derivative;
 
 	//88.5
-    servoDroit.write(89 + output - compensationAnglesothatitdoesnotturnagainstthecableattachedtoit);
+    servoDroit.write(89 + output);
     servoGauche.write(90 - output);
-    
-    Serial.print(">Angle: ");
-    Serial.println(desiredAngle);
+    Serial.print("Angle Y actuel: ");
+    Serial.println(angle);
+    Serial.print("PID Output: ");
+    Serial.println(output);
 
     previous_error = error;
 }
